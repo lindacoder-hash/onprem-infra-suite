@@ -1,0 +1,24 @@
+pvc:
+  name: uptime-kuma-pvc
+  accessMode: ReadWriteOnce
+  size: 30Gi
+  storageClass:  <storageClass name>
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    kubernetes.io/tls-acme: "true"
+    cert-manager.io/cluster-issuer: "<cert-name>"
+    ingress.kubernetes.io/ssl-passthrough: "true"
+    ingress.kubernetes.io/secure-backends: "true"
+
+  hosts:
+    - host: <uptime domain name>
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls:
+    - secretName: uptime-indicina-tls
+      hosts:
+        - <uptime domain name>

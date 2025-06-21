@@ -1,0 +1,159 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tooljet-deployment
+  labels:
+    app.kubernetes.io/name: tooljet
+    app.kubernetes.io/instance: tooljet
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tooljet
+      app.kubernetes.io/instance: tooljet
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tooljet
+        app.kubernetes.io/instance: tooljet
+    spec:
+      affinity: {}
+      tolerations:
+        - key: "on-demand-server"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      imagePullSecrets:
+        - name: docker-secret
+      containers:
+        - name: container
+          image: tooljet/tooljet-ce:v2.27.7
+          imagePullPolicy: IfNotPresent
+          args: ["npm", "run", "start:prod"]
+          resources:
+            requests:
+              memory: "100Mi"
+              cpu: "0.05m"
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              port: 3000
+              path: /api/health
+            successThreshold: 2
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 1
+          env:
+            - name: PG_HOST
+              value: "postgresql.production.svc.cluster.local"
+            - name: PG_USER
+              valueFrom:
+                secretKeyRef:
+                  name: tooljet
+                  key: PG_USER
+            - name: PG_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: tooljet
+                  key: PG_PASS
+            - name: PG_DB
+              valueFrom:
+                secretKeyRef:
+                  name: tooljet
+                  key: PG_DB
+            - name: LOCKBOX_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tooljet
+                  key: LOCKBOX_MASTER_KEY
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: tooljet
+                  key: SECRET_KEY_BASE
+            - name: TOOLJET_HOST
+              value: "https://tooljet.domain.co"
+            - name: DEPLOYMENT_PLATFORM
+              value: "k8s"
+            - name: DISABLE_MULTI_WORKSPACE
+              value: "true"
+            - name: COMMENT_FEATURE_ENABLE
+              value: "true"
+            - name: ENABLE_MULTIPLAYER_EDITING
+              value: "true"
+            - name: ENABLE_MARKETPLACE_FEATURE
+              value: "true"
+            - name: DEFAULT_FROM_EMAIL
+              value: "tooljet@domain.co"
+            - name: SMTP_USERNAME
+              value: "< SMTP_USERNAME>"
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tooljet
+                  key: SMTP_PASSWORD
+            - name: SMTP_DOMAIN
+              value: "<SMTP_DOMAIN>"
+            - name: SMTP_PORT
+              value: "<SMTP_PORT>"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tooljet-deployment
+  labels:
+    app.kubernetes.io/name: tooljet
+    app.kubernetes.io/instance: tooljet
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: tooljet
+    app.kubernetes.io/instance: tooljet
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tooljet-deployment
+  labels:
+    app.kubernetes.io/name: tooljet
+    app.kubernetes.io/instance: tooljet
+  annotations:
+    cert-manager.io/cluster-issuer: "<cert-manager-name>"
+    kubernetes.io/tls-acme: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "5m"
+    ingress.kubernetes.io/secure-backends: "true"
+    kubernetes.io/ingress.allow-http: "false"
+    ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/limit-rps: "10"
+
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - "tooljet.domain.co"
+      secretName: tooljet-prod-tls
+  rules:
+    - host: "tooljet.domain.co"
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: tooljet-deployment
+                port:
+                  number: 80
