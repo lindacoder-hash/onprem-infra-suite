@@ -19,6 +19,6 @@ ingress:
         - path: /
           pathType: ImplementationSpecific
   tls:
-    - secretName: uptime-indicina-tls
+    - secretName: uptime-tls
       hosts:
         - <uptime domain name>
