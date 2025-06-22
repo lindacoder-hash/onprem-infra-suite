@@ -1,0 +1,9 @@
+
+persistence:
+  storageClass: "storage-class-name"
+  size: 100Gi
+
+image: container-registry.oracle.com/database/free:23.3.0.0
+
+
+imagePullSecrets: regcred
